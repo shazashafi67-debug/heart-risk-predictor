@@ -3,15 +3,16 @@ import pandas as pd
 import numpy as np
 from sklearn.ensemble import RandomForestClassifier
 import plotly.express as px
-from inference import InferenceClient
+from huggingface_hub import InferenceClient
 
 # -------------------------------
-# HuggingFace Inference Client
+# Hugging Face API Setup
 # -------------------------------
-client = InferenceClient(repo_id="google/flan-t5-small")  # public free model
+hf_token = st.secrets["HUGGINGFACE_API_KEY"]  # Set your token in Streamlit Secrets
+client = InferenceClient(repo_id="google/flan-t5-small", token=hf_token)
 
 # -------------------------------
-# App Configuration
+# App Config
 # -------------------------------
 st.set_page_config(page_title="Lifestyle & Heart Risk Predictor + AI", layout="wide")
 st.title("🩺 Lifestyle & Heart Risk Predictor + 🤖 AI Assistant")
@@ -76,7 +77,7 @@ if page == "🏃 Manual Lifestyle Input":
         st.subheader("Prediction Result")
         st.write("High Risk ⚠️" if pred==1 else "Low Risk ✅")
 
-        # Tips
+        # Lifestyle Tips
         st.subheader("Lifestyle Tips")
         if pred == 1:
             st.markdown("""
@@ -130,25 +131,19 @@ elif page == "💬 Chat with AI":
         st.session_state.chat_history = []
 
     for role, msg in st.session_state.chat_history:
-        with st.chat_message(role):
-            st.markdown(msg)
+        st.write(f"**{role}:** {msg}")
 
-    user_input = st.chat_input("Type your question...")
+    user_input = st.text_input("Type your question:")
     if user_input:
         st.session_state.chat_history.append(("user", user_input))
-        with st.chat_message("user"):
-            st.markdown(user_input)
 
+        # Prepare prompt including chat history
+        prompt = "\n".join([f"{role}: {msg}" for role, msg in st.session_state.chat_history])
         try:
-            # HuggingFace text generation
-            ai_reply = client.text_generation(
-                inputs=f"You are a helpful AI health and lifestyle assistant. {user_input}",
-                max_new_tokens=150
-            )['generated_text']
-
+            ai_reply = client.text(prompt)
             st.session_state.chat_history.append(("assistant", ai_reply))
-            with st.chat_message("assistant"):
-                st.markdown(ai_reply)
         except Exception as e:
-            st.error(f"⚠️ HuggingFace error: {e}")
+            st.error(f"⚠️ Hugging Face error: {e}")
+
+
 
