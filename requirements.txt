@@ -3,6 +3,10 @@ pandas
 numpy
 scikit-learn
 plotly
+transformers
+torch
+
+
 
 
 
