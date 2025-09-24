@@ -3,25 +3,17 @@ import pandas as pd
 import numpy as np
 from sklearn.ensemble import RandomForestClassifier
 import plotly.express as px
-from huggingface_hub import InferenceClient
 
 # -------------------------------
-# Hugging Face API Setup
+# App Configuration
 # -------------------------------
-hf_token = st.secrets["HUGGINGFACE_API_KEY"]  # Set your token in Streamlit Secrets
-client = InferenceClient(repo_id="google/flan-t5-small", token=hf_token)
-
-# -------------------------------
-# App Config
-# -------------------------------
-st.set_page_config(page_title="Lifestyle & Heart Risk Predictor + AI", layout="wide")
-st.title("🩺 Lifestyle & Heart Risk Predictor + 🤖 AI Assistant")
+st.set_page_config(page_title="Lifestyle & Heart Risk Predictor", layout="wide")
+st.title("🩺 Lifestyle & Heart Risk Predictor + CSV Insights")
 st.sidebar.title("Navigation")
 
 page = st.sidebar.radio("Go to:", [
     "🏃 Manual Lifestyle Input",
-    "📊 CSV Upload Predictions",
-    "💬 Chat with AI"
+    "📊 CSV Upload Comparisons"
 ])
 
 # -------------------------------
@@ -77,7 +69,7 @@ if page == "🏃 Manual Lifestyle Input":
         st.subheader("Prediction Result")
         st.write("High Risk ⚠️" if pred==1 else "Low Risk ✅")
 
-        # Lifestyle Tips
+        # Tips
         st.subheader("Lifestyle Tips")
         if pred == 1:
             st.markdown("""
@@ -91,59 +83,54 @@ if page == "🏃 Manual Lifestyle Input":
             st.markdown("Keep maintaining your healthy lifestyle! 💪")
 
 # -------------------------------
-# PAGE 2: CSV Upload Predictions
+# PAGE 2: CSV Upload Comparisons
 # -------------------------------
-elif page == "📊 CSV Upload Predictions":
-    st.header("Upload CSV files for batch heart risk predictions")
+elif page == "📊 CSV Upload Comparisons":
+    st.header("Upload CSV files for batch heart risk predictions & comparisons")
     uploaded_files = st.file_uploader("Upload CSV(s)", type=["csv"], accept_multiple_files=True)
 
     if uploaded_files:
+        all_dfs = []
         for file in uploaded_files:
-            st.subheader(f"Preview: {file.name}")
             df = pd.read_csv(file)
-            st.dataframe(df.head())
+            df['Source File'] = file.name
+            all_dfs.append(df)
 
-            try:
-                # Take only numeric columns for prediction
-                X = df.select_dtypes(include=np.number)
-                y_dummy = np.random.randint(0,2,len(df))  # dummy target
-                model = RandomForestClassifier(n_estimators=100, random_state=42)
-                model.fit(X, y_dummy)
-                df['Prediction'] = model.predict(X)
+        combined_df = pd.concat(all_dfs, ignore_index=True)
+        st.subheader("Combined Data Preview")
+        st.dataframe(combined_df.head())
 
-                st.subheader("Prediction Distribution")
-                fig = px.bar(
-                    x=['Low Risk','High Risk'],
-                    y=[(df['Prediction']==0).sum(), (df['Prediction']==1).sum()],
-                    labels={'x':'Risk Category','y':'Count'}
-                )
-                st.plotly_chart(fig, use_container_width=True)
-            except Exception as e:
-                st.error(f"❌ Could not predict for `{file.name}`: {e}")
+        # Take only numeric columns for dummy prediction
+        numeric_cols = combined_df.select_dtypes(include=np.number).columns
+        if len(numeric_cols) == 0:
+            st.warning("No numeric columns found for prediction.")
+        else:
+            X = combined_df[numeric_cols]
+            y_dummy = np.random.randint(0,2,len(combined_df))  # dummy target
+            model = RandomForestClassifier(n_estimators=100, random_state=42)
+            model.fit(X, y_dummy)
+            combined_df['Prediction'] = model.predict(X)
 
-# -------------------------------
-# PAGE 3: Chatbot
-# -------------------------------
-elif page == "💬 Chat with AI":
-    st.header("💬 Ask the AI any health or lifestyle questions!")
+            st.subheader("Prediction Distribution Across Files")
+            fig = px.bar(
+                combined_df['Prediction'].value_counts().rename({0:'Low Risk', 1:'High Risk'}),
+                labels={'index':'Risk Category','value':'Count'},
+                title="Overall Heart Risk Distribution"
+            )
+            st.plotly_chart(fig, use_container_width=True)
 
-    if "chat_history" not in st.session_state:
-        st.session_state.chat_history = []
+            st.subheader("File-wise Summary")
+            summary = combined_df.groupby('Source File')['Prediction'].value_counts().unstack(fill_value=0)
+            st.dataframe(summary)
 
-    for role, msg in st.session_state.chat_history:
-        st.write(f"**{role}:** {msg}")
+            # Download button
+            st.download_button(
+                label="Download Predictions CSV",
+                data=combined_df.to_csv(index=False),
+                file_name="Predicted_Heart_Risk.csv",
+                mime="text/csv"
+            )
 
-    user_input = st.text_input("Type your question:")
-    if user_input:
-        st.session_state.chat_history.append(("user", user_input))
-
-        # Prepare prompt including chat history
-        prompt = "\n".join([f"{role}: {msg}" for role, msg in st.session_state.chat_history])
-        try:
-            ai_reply = client.text(prompt)
-            st.session_state.chat_history.append(("assistant", ai_reply))
-        except Exception as e:
-            st.error(f"⚠️ Hugging Face error: {e}")
 
 
 
