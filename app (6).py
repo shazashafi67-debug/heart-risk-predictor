@@ -3,38 +3,26 @@ import pandas as pd
 import numpy as np
 from sklearn.ensemble import RandomForestClassifier
 import plotly.express as px
-from transformers import AutoTokenizer, AutoModelForCausalLM
-import torch
 
 # -------------------------------
-# App Config
+# App Configuration
 # -------------------------------
-st.set_page_config(page_title="Lifestyle & Heart Risk + Free AI", layout="wide")
-st.title("🩺 Lifestyle & Heart Risk Predictor + 💬 Free AI Chatbot")
+st.set_page_config(page_title="Lifestyle & Heart Risk Predictor", layout="wide")
+st.title("🩺 Lifestyle & Heart Risk Predictor")
 st.sidebar.title("Navigation")
 
 page = st.sidebar.radio("Go to:", [
     "🏃 Manual Lifestyle Input",
     "📊 CSV Upload Predictions",
-    "💬 Chat with AI"
+    "🎯 Goal Setting & Progress Tracking"
 ])
 
-# -------------------------------
-# Load Hugging Face Model (cached)
-# -------------------------------
-@st.cache_resource
-def load_chatbot():
-    tokenizer = AutoTokenizer.from_pretrained("datificate/ChatGPT-small")
-    model = AutoModelForCausalLM.from_pretrained("datificate/ChatGPT-small")
-    return tokenizer, model
 
-tokenizer, model = load_chatbot()
-
-# -------------------------------
 # PAGE 1: Manual Lifestyle Input
-# -------------------------------
+
 if page == "🏃 Manual Lifestyle Input":
     st.header("Enter your lifestyle & health data for Heart Risk Prediction")
+
     # Numeric inputs
     age = st.number_input("Age", 20, 100, 50)
     resting_bp = st.number_input("Resting Blood Pressure (mm Hg)", 80, 200, 120)
@@ -71,12 +59,13 @@ if page == "🏃 Manual Lifestyle Input":
             'alco':[alco],
             'active':[active]
         })
-        # Dummy model
+
+        # Dummy model for demonstration
         X_demo = input_data.copy()
-        y_demo = [1]
-        model_rf = RandomForestClassifier(n_estimators=10, random_state=42)
-        model_rf.fit(X_demo, y_demo)
-        pred = model_rf.predict(input_data)[0]
+        y_demo = [1]  # assume high risk
+        model = RandomForestClassifier(n_estimators=10, random_state=42)
+        model.fit(X_demo, y_demo)
+        pred = model.predict(input_data)[0]
 
         st.subheader("Prediction Result")
         st.write("High Risk ⚠️" if pred==1 else "Low Risk ✅")
@@ -98,7 +87,7 @@ if page == "🏃 Manual Lifestyle Input":
 # PAGE 2: CSV Upload Predictions
 # -------------------------------
 elif page == "📊 CSV Upload Predictions":
-    st.header("Upload CSV files for batch predictions")
+    st.header("Upload CSV files for batch heart risk predictions")
     uploaded_files = st.file_uploader("Upload CSV(s)", type=["csv"], accept_multiple_files=True)
 
     if uploaded_files:
@@ -108,11 +97,12 @@ elif page == "📊 CSV Upload Predictions":
             st.dataframe(df.head())
 
             try:
+                # Take only numeric columns for prediction
                 X = df.select_dtypes(include=np.number)
-                y_dummy = np.random.randint(0,2,len(df))
-                model_rf = RandomForestClassifier(n_estimators=100, random_state=42)
-                model_rf.fit(X, y_dummy)
-                df['Prediction'] = model_rf.predict(X)
+                y_dummy = np.random.randint(0,2,len(df))  # dummy target
+                model = RandomForestClassifier(n_estimators=100, random_state=42)
+                model.fit(X, y_dummy)
+                df['Prediction'] = model.predict(X)
 
                 st.subheader("Prediction Distribution")
                 fig = px.bar(
@@ -125,30 +115,39 @@ elif page == "📊 CSV Upload Predictions":
                 st.error(f"❌ Could not predict for `{file.name}`: {e}")
 
 # -------------------------------
-# PAGE 3: Chatbot
+# PAGE 3: Goal Setting & Progress Tracking
 # -------------------------------
-elif page == "💬 Chat with AI":
-    st.header("💬 Ask the AI any health or lifestyle questions!")
-    if "chat_history" not in st.session_state:
-        st.session_state.chat_history = []
+elif page == "🎯 Goal Setting & Progress Tracking":
+    st.header("Set your health goals and track your progress!")
 
-    for role, msg in st.session_state.chat_history:
-        with st.chat_message(role):
-            st.markdown(msg)
+    # User inputs for goals
+    steps_goal = st.number_input("Daily Steps Goal", 1000, 50000, 10000)
+    exercise_goal = st.number_input("Daily Exercise Minutes Goal", 0, 180, 30)
+    water_goal = st.number_input("Daily Water Intake (ml)", 500, 5000, 2000)
 
-    user_input = st.chat_input("Type your question...")
-    if user_input:
-        st.session_state.chat_history.append(("user", user_input))
-        with st.chat_message("user"):
-            st.markdown(user_input)
+    # User logs
+    st.subheader("Log Today's Progress")
+    steps_done = st.number_input("Steps Done Today", 0, 50000, 0)
+    exercise_done = st.number_input("Exercise Minutes Today", 0, 180, 0)
+    water_done = st.number_input("Water Intake Today (ml)", 0, 5000, 0)
 
-        input_ids = tokenizer.encode(user_input + tokenizer.eos_token, return_tensors="pt")
-        output_ids = model.generate(input_ids, max_length=200, do_sample=True, top_p=0.95, top_k=50)
-        reply = tokenizer.decode(output_ids[0], skip_special_tokens=True)
+    # Calculate progress %
+    steps_pct = min(steps_done / steps_goal * 100, 100)
+    exercise_pct = min(exercise_done / exercise_goal * 100, 100)
+    water_pct = min(water_done / water_goal * 100, 100)
 
-        st.session_state.chat_history.append(("assistant", reply))
-        with st.chat_message("assistant"):
-            st.markdown(reply)
+    st.subheader("Progress Overview")
+    st.write(f"Steps: {steps_done}/{steps_goal} ({steps_pct:.1f}%)")
+    st.write(f"Exercise: {exercise_done}/{exercise_goal} min ({exercise_pct:.1f}%)")
+    st.write(f"Water Intake: {water_done}/{water_goal} ml ({water_pct:.1f}%)")
+
+    progress_df = pd.DataFrame({
+        "Metric":["Steps","Exercise","Water Intake"],
+        "Progress %":[steps_pct, exercise_pct, water_pct]
+    })
+
+    fig = px.bar(progress_df, x="Metric", y="Progress %", text="Progress %", range_y=[0,100])
+    st.plotly_chart(fig, use_container_width=True)
 
 
 
