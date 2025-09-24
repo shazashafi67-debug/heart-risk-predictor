@@ -3,7 +3,8 @@ pandas
 numpy
 scikit-learn
 plotly
-transformers
-inference
+huggingface_hub
+
+
 
 
