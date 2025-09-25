@@ -25,13 +25,14 @@ page = st.sidebar.radio("Go to:", [
     "🏃 Lifestyle Risk Prediction",
     "📊 Upload CSV for Batch Predictions",
     "📈 Weekly Progress",
+    "📋 Analyze PKL Models",
     "💬 Chat with AI"
 ])
 
 # -------------------------------
 # Upload PKL Models
 # -------------------------------
-st.sidebar.subheader("Upload PKL Models (Batch Prediction Only)")
+st.sidebar.subheader("Upload PKL Models (Batch Prediction / Analysis Only)")
 heart_model_file = st.sidebar.file_uploader("Heart Risk Model", type="pkl")
 cardio_model_file = st.sidebar.file_uploader("Cardio Risk Model", type="pkl")
 activity_model_file = st.sidebar.file_uploader("Activity Model", type="pkl")
@@ -60,42 +61,36 @@ if page == "🏃 Lifestyle Risk Prediction":
     if st.button("Predict Heart Risk"):
         # Rules-based scoring
         risk_score = 0
-        # Steps
         if steps_per_day < 5000:
             risk_score += 2
         elif steps_per_day < 10000:
             risk_score += 1
-        # Sedentary
         if sedentary_hours > 10:
             risk_score += 2
         elif sedentary_hours > 6:
             risk_score += 1
-        # Smoking
         smoke_map = {"Never":0,"Used to":1,"Occasionally":2,"Regularly":3}
         risk_score += smoke_map[smoke]
-        # Alcohol
         alco_map = {"Never":0,"Occasionally":1,"Regularly":2}
         risk_score += alco_map[alco]
-        # Activity
         active_map = {"Sedentary":3,"Lightly Active":2,"Moderately Active":1,"Very Active":0}
         risk_score += active_map[active]
 
-        # Risk interpretation
         if risk_score >=6:
             st.subheader("Prediction Result: High Risk ⚠️")
             st.markdown("""
-            **Tips to reduce risk:**  
-            - Increase daily steps and reduce sedentary time  
+            **Tips:**  
+            - Increase steps, reduce sedentary time  
             - Exercise regularly  
-            - Avoid smoking & limit alcohol intake  
-            - Eat a balanced diet
+            - Avoid smoking & limit alcohol  
+            - Balanced diet
             """)
         elif risk_score >=3:
             st.subheader("Prediction Result: Moderate Risk ⚠️")
-            st.markdown("Try to improve activity, reduce sedentary time, and maintain a healthy lifestyle.")
+            st.markdown("Improve activity and reduce sedentary time.")
         else:
             st.subheader("Prediction Result: Low Risk ✅")
-            st.markdown("Great! Keep maintaining your healthy lifestyle 💪")
+            st.markdown("Great! Keep it up 💪")
 
 # -------------------------------
 # PAGE 2: CSV Upload (Batch PKL Prediction)
@@ -144,7 +139,34 @@ elif page == "📈 Weekly Progress":
         st.plotly_chart(fig, use_container_width=True)
 
 # -------------------------------
-# PAGE 4: Chatbot
+# PAGE 4: Analyze PKL Models
+# -------------------------------
+elif page == "📋 Analyze PKL Models":
+    st.header("🔍 Analyze Uploaded PKL Models")
+    if not models_loaded:
+        st.warning("Upload all PKL models first!")
+    else:
+        st.subheader("Feature Importance (Heart Model)")
+        heart_imp = pd.DataFrame({
+            "Feature": heart_model.feature_names_in_,
+            "Importance": heart_model.feature_importances_
+        }).sort_values(by="Importance", ascending=False)
+        st.dataframe(heart_imp)
+        st.subheader("Feature Importance (Cardio Model)")
+        cardio_imp = pd.DataFrame({
+            "Feature": cardio_model.feature_names_in_,
+            "Importance": cardio_model.feature_importances_
+        }).sort_values(by="Importance", ascending=False)
+        st.dataframe(cardio_imp)
+        st.subheader("Feature Importance (Activity Model)")
+        activity_imp = pd.DataFrame({
+            "Feature": activity_model.feature_names_in_,
+            "Importance": activity_model.feature_importances_
+        }).sort_values(by="Importance", ascending=False)
+        st.dataframe(activity_imp)
+
+# -------------------------------
+# PAGE 5: Chatbot
 # -------------------------------
 elif page == "💬 Chat with AI":
     st.header("💬 Ask Health & Lifestyle Questions")
@@ -176,3 +198,4 @@ elif page == "💬 Chat with AI":
                     st.markdown(ai_reply)
             except Exception as e:
                 st.error(f"⚠️ OpenAI error: {e}")
+
