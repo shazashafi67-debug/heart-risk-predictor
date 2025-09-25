@@ -1,14 +1,17 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
+import joblib
 from sklearn.ensemble import RandomForestClassifier
 import plotly.express as px
-import joblib
 import openai
+import os
 
 # -------------------------------
-# OpenAI API Key (from secrets)
+# OpenAI API Key
 # -------------------------------
+# Make sure to add this in Streamlit secrets:
+# OPENAI_API_KEY = "sk-..."
 openai.api_key = st.secrets["OPENAI_API_KEY"]
 
 # -------------------------------
@@ -67,7 +70,7 @@ if page == "🏃 Manual Lifestyle Input":
             'active':[active]
         })
 
-        # Dummy model for demo
+        # Dummy model for demonstration
         X_demo = input_data.copy()
         y_demo = [1]  # assume high risk
         model = RandomForestClassifier(n_estimators=10, random_state=42)
@@ -94,22 +97,23 @@ if page == "🏃 Manual Lifestyle Input":
 # PAGE 2: PKL Upload Predictions
 # -------------------------------
 elif page == "📊 PKL Upload Predictions":
-    st.header("Upload PKL files for batch predictions")
-    uploaded_files = st.file_uploader("Upload PKL(s)", type=["pkl"], accept_multiple_files=True)
+    st.header("Upload PKL files for batch heart risk predictions")
+    uploaded_files = st.file_uploader("Upload PKL file(s)", type=["pkl"], accept_multiple_files=True)
 
     if uploaded_files:
         for file in uploaded_files:
-            st.subheader(f"Preview & Predictions: {file.name}")
-            try:
-                model = joblib.load(file)
-                st.success(f"✅ {file.name} loaded successfully")
+            st.subheader(f"Preview: {file.name}")
+            model = joblib.load(file)
+            st.write(f"Loaded model: {file.name}")
 
-                # Use only numeric columns from user input
-                st.write("Currently, this demo does not include automatic data mapping.")
-                st.info("Ensure your PKL model matches your input features when using in production.")
-
-            except Exception as e:
-                st.error(f"❌ Could not load `{file.name}`: {e}")
+            # For demonstration, generate random input matching features
+            if hasattr(model, "feature_names_in_"):
+                features = model.feature_names_in_
+                df_dummy = pd.DataFrame(np.random.rand(5, len(features)), columns=features)
+                df_dummy['Prediction'] = model.predict(df_dummy)
+                st.dataframe(df_dummy)
+            else:
+                st.error("❌ Model does not contain feature names.")
 
 # -------------------------------
 # PAGE 3: Chatbot
@@ -120,12 +124,10 @@ elif page == "💬 Chat with AI":
     if "chat_history" not in st.session_state:
         st.session_state.chat_history = []
 
-    # Display chat history
     for role, msg in st.session_state.chat_history:
         with st.chat_message(role):
             st.markdown(msg)
 
-    # User input
     user_input = st.chat_input("Type your question...")
     if user_input:
         st.session_state.chat_history.append(("user", user_input))
@@ -144,6 +146,7 @@ elif page == "💬 Chat with AI":
                 st.markdown(ai_reply)
         except Exception as e:
             st.error(f"⚠️ OpenAI error: {e}")
+
 
 
 
