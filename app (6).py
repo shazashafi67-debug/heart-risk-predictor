@@ -10,10 +10,6 @@ from openai import OpenAI
 # -------------------------------
 # OpenAI Setup
 # -------------------------------
-# Make sure to add your OpenAI API key in Streamlit secrets:
-# [general]
-# OPENAI_API_KEY = "sk-xxxx"
-
 client = None
 if "OPENAI_API_KEY" in st.secrets:
     client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
@@ -26,7 +22,7 @@ st.title("🩺 Health & Lifestyle Predictor + AI Assistant")
 st.sidebar.title("Navigation")
 
 page = st.sidebar.radio("Go to:", [
-    "🏃 Manual Lifestyle Input",
+    "🏃 Lifestyle Risk Prediction",
     "📊 Upload CSV for Batch Predictions",
     "📈 Weekly Progress",
     "💬 Chat with AI"
@@ -35,7 +31,7 @@ page = st.sidebar.radio("Go to:", [
 # -------------------------------
 # Upload PKL Models
 # -------------------------------
-st.sidebar.subheader("Upload PKL Models")
+st.sidebar.subheader("Upload PKL Models (Batch Prediction Only)")
 heart_model_file = st.sidebar.file_uploader("Heart Risk Model", type="pkl")
 cardio_model_file = st.sidebar.file_uploader("Cardio Risk Model", type="pkl")
 activity_model_file = st.sidebar.file_uploader("Activity Model", type="pkl")
@@ -49,69 +45,60 @@ if heart_model_file and cardio_model_file and activity_model_file:
     st.sidebar.success("✅ Models loaded successfully!")
 
 # -------------------------------
-# PAGE 1: Manual Input
+# PAGE 1: Lifestyle Risk Prediction (Manual)
 # -------------------------------
-if page == "🏃 Manual Lifestyle Input":
-    st.header("Enter Lifestyle & Health Data")
-    if not models_loaded:
-        st.warning("Upload all 3 PKL models first!")
-    else:
-        # Inputs
-        age = st.number_input("Age", 20, 100, 50)
-        resting_bp = st.number_input("Resting BP (mm Hg)", 80, 200, 120)
-        cholesterol = st.number_input("Cholesterol (mg/dl)", 100, 400, 200)
-        max_hr = st.number_input("Max Heart Rate Achieved", 60, 220, 150)
-        steps_per_day = st.number_input("Steps per day", 0, 50000, 8000)
-        sedentary_hours = st.number_input("Sedentary hours/day", 0, 24, 8)
+if page == "🏃 Lifestyle Risk Prediction":
+    st.header("Enter Lifestyle Data for Heart Risk Prediction")
+    
+    # Lifestyle inputs
+    steps_per_day = st.number_input("Average Steps Per Day", 0, 50000, 8000)
+    sedentary_hours = st.number_input("Hours Sedentary Per Day", 0, 24, 8)
+    smoke = st.selectbox("Smoking Habit", ["Never", "Used to", "Occasionally", "Regularly"])
+    alco = st.selectbox("Alcohol Intake", ["Never", "Occasionally", "Regularly"])
+    active = st.selectbox("Exercise Level", ["Sedentary", "Lightly Active", "Moderately Active", "Very Active"])
 
-        sex = st.selectbox("Sex", ["Male", "Female"])
-        smoke = st.selectbox("Smoking Habit", ["Never", "Used to", "Occasionally", "Regularly"])
-        alco = st.selectbox("Alcohol Intake", ["Never", "Occasionally", "Regularly"])
-        active = st.selectbox("Exercise Level", ["Sedentary", "Lightly Active", "Moderately Active", "Very Active"])
+    if st.button("Predict Heart Risk"):
+        # Rules-based scoring
+        risk_score = 0
+        # Steps
+        if steps_per_day < 5000:
+            risk_score += 2
+        elif steps_per_day < 10000:
+            risk_score += 1
+        # Sedentary
+        if sedentary_hours > 10:
+            risk_score += 2
+        elif sedentary_hours > 6:
+            risk_score += 1
+        # Smoking
+        smoke_map = {"Never":0,"Used to":1,"Occasionally":2,"Regularly":3}
+        risk_score += smoke_map[smoke]
+        # Alcohol
+        alco_map = {"Never":0,"Occasionally":1,"Regularly":2}
+        risk_score += alco_map[alco]
+        # Activity
+        active_map = {"Sedentary":3,"Lightly Active":2,"Moderately Active":1,"Very Active":0}
+        risk_score += active_map[active]
 
-        # Mapping
-        sex = 0 if sex=="Male" else 1
-        smoke_map = {"Never":0, "Used to":1, "Occasionally":2, "Regularly":3}
-        alco_map = {"Never":0, "Occasionally":1, "Regularly":2}
-        active_map = {"Sedentary":0, "Lightly Active":1, "Moderately Active":2, "Very Active":3}
-        smoke = smoke_map[smoke]
-        alco = alco_map[alco]
-        active = active_map[active]
-
-        input_data = pd.DataFrame({
-            'age':[age],'sex':[sex],'resting_bp':[resting_bp],'cholesterol':[cholesterol],
-            'max_hr':[max_hr],'steps_per_day':[steps_per_day],'sedentary_hours':[sedentary_hours],
-            'smoke':[smoke],'alco':[alco],'active':[active]
-        })
-
-        if st.button("Predict"):
-            heart_pred = heart_model.predict(input_data)[0]
-            cardio_pred = cardio_model.predict(input_data)[0]
-            activity_pred = activity_model.predict(input_data)[0]
-
-            st.subheader("Predictions")
-            st.write(f"❤️ Heart Risk: {'High ⚠️' if heart_pred==1 else 'Low ✅'}")
-            st.write(f"💓 Cardio Risk: {'High ⚠️' if cardio_pred==1 else 'Low ✅'}")
-            st.write(f"🏃 Activity Risk: {'Low ⚠️' if activity_pred==1 else 'Good ✅'}")
-
-            # Tips
-            tips = []
-            if heart_pred==1:
-                tips.append("- Increase physical activity (10k steps/day)")
-                tips.append("- Reduce sedentary hours")
-                tips.append("- Eat a balanced diet")
-            if cardio_pred==1:
-                tips.append("- Include cardio exercises 3-5 times/week")
-            if activity_pred==0:
-                tips.append("- Stay active: break long sitting periods")
-            if not tips:
-                tips.append("Keep up your healthy lifestyle! 💪")
-            st.subheader("Lifestyle Tips")
-            for t in tips:
-                st.markdown(t)
+        # Risk interpretation
+        if risk_score >=6:
+            st.subheader("Prediction Result: High Risk ⚠️")
+            st.markdown("""
+            **Tips to reduce risk:**  
+            - Increase daily steps and reduce sedentary time  
+            - Exercise regularly  
+            - Avoid smoking & limit alcohol intake  
+            - Eat a balanced diet
+            """)
+        elif risk_score >=3:
+            st.subheader("Prediction Result: Moderate Risk ⚠️")
+            st.markdown("Try to improve activity, reduce sedentary time, and maintain a healthy lifestyle.")
+        else:
+            st.subheader("Prediction Result: Low Risk ✅")
+            st.markdown("Great! Keep maintaining your healthy lifestyle 💪")
 
 # -------------------------------
-# PAGE 2: CSV Upload
+# PAGE 2: CSV Upload (Batch PKL Prediction)
 # -------------------------------
 elif page == "📊 Upload CSV for Batch Predictions":
     st.header("Upload CSV for batch predictions")
@@ -146,20 +133,13 @@ elif page == "📊 Upload CSV for Batch Predictions":
 # -------------------------------
 elif page == "📈 Weekly Progress":
     st.header("📅 Weekly Goal & Progress Tracker")
-    st.info("Enter your steps and activity each day to track weekly progress.")
-
+    st.info("Enter your steps and sedentary hours each day to track weekly progress.")
     days = ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"]
     steps = [st.number_input(f"Steps {day}", 0, 50000, 0, key=f"steps_{day}") for day in days]
     sedentary = [st.number_input(f"Sedentary hours {day}", 0, 24, 0, key=f"sed_{day}") for day in days]
-
     if st.button("Show Weekly Progress"):
-        df_progress = pd.DataFrame({
-            'Day': days,
-            'Steps': steps,
-            'Sedentary Hours': sedentary
-        })
+        df_progress = pd.DataFrame({'Day': days, 'Steps': steps, 'Sedentary Hours': sedentary})
         st.dataframe(df_progress)
-
         fig = px.bar(df_progress, x='Day', y='Steps', title="Weekly Steps Progress", text='Steps')
         st.plotly_chart(fig, use_container_width=True)
 
@@ -196,6 +176,3 @@ elif page == "💬 Chat with AI":
                     st.markdown(ai_reply)
             except Exception as e:
                 st.error(f"⚠️ OpenAI error: {e}")
-
-
-       
