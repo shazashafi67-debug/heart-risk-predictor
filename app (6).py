@@ -5,6 +5,7 @@ import joblib
 import plotly.express as px
 from datetime import datetime, timedelta
 from openai import OpenAI
+import io  # <-- Needed for in-memory file handling
 
 # ------------------------------
 # OpenAI Setup
@@ -37,9 +38,9 @@ activity_model_file = st.sidebar.file_uploader("Activity Model", type="pkl")
 
 models_loaded = False
 if heart_model_file and cardio_model_file and activity_model_file:
-    heart_model = joblib.load(heart_model_file)
-    cardio_model = joblib.load(cardio_model_file)
-    activity_model = joblib.load(activity_model_file)
+    heart_model = joblib.load(io.BytesIO(heart_model_file.read()))
+    cardio_model = joblib.load(io.BytesIO(cardio_model_file.read()))
+    activity_model = joblib.load(io.BytesIO(activity_model_file.read()))
     models_loaded = True
     st.sidebar.success("✅ Models loaded successfully!")
 
