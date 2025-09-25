@@ -4,26 +4,20 @@ import numpy as np
 import joblib
 from sklearn.ensemble import RandomForestClassifier
 import plotly.express as px
-import openai
-import os
+from datetime import datetime, timedelta
+from transformers import pipeline
 
 # -------------------------------
-# OpenAI API Key
+# Streamlit page setup
 # -------------------------------
-# Make sure to add this in Streamlit secrets:
-# OPENAI_API_KEY = "sk-..."
-openai.api_key = st.secrets["OPENAI_API_KEY"]
-
-# -------------------------------
-# App Configuration
-# -------------------------------
-st.set_page_config(page_title="Lifestyle & Heart Risk Predictor + AI", layout="wide")
-st.title("🩺 Lifestyle & Heart Risk Predictor + 🤖 AI Assistant")
+st.set_page_config(page_title="Lifestyle & Heart Risk Predictor", layout="wide")
+st.title("🩺 Lifestyle & Heart Risk Predictor + 🤖 Chatbot")
 st.sidebar.title("Navigation")
 
 page = st.sidebar.radio("Go to:", [
     "🏃 Manual Lifestyle Input",
-    "📊 PKL Upload Predictions",
+    "📊 Upload PKL Models & Predict",
+    "📅 Weekly Progress Tracker",
     "💬 Chat with AI"
 ])
 
@@ -32,7 +26,7 @@ page = st.sidebar.radio("Go to:", [
 # -------------------------------
 if page == "🏃 Manual Lifestyle Input":
     st.header("Enter your lifestyle & health data for Heart Risk Prediction")
-
+    
     # Numeric inputs
     age = st.number_input("Age", 20, 100, 50)
     resting_bp = st.number_input("Resting Blood Pressure (mm Hg)", 80, 200, 120)
@@ -49,28 +43,20 @@ if page == "🏃 Manual Lifestyle Input":
 
     # Convert categorical to numeric
     sex = 0 if sex == "Male" else 1
-    smoke_map = {"Never": 0, "Used to": 1, "Occasionally": 2, "Regularly": 3}
-    alco_map = {"Never": 0, "Occasionally": 1, "Regularly": 2}
-    active_map = {"Sedentary": 0, "Lightly Active": 1, "Moderately Active": 2, "Very Active": 3}
+    smoke_map = {"Never":0, "Used to":1, "Occasionally":2, "Regularly":3}
+    alco_map = {"Never":0, "Occasionally":1, "Regularly":2}
+    active_map = {"Sedentary":0, "Lightly Active":1, "Moderately Active":2, "Very Active":3}
     smoke = smoke_map[smoke]
     alco = alco_map[alco]
     active = active_map[active]
 
     if st.button("Predict Heart Risk"):
         input_data = pd.DataFrame({
-            'age':[age],
-            'sex':[sex],
-            'resting_bp':[resting_bp],
-            'cholesterol':[cholesterol],
-            'max_hr':[max_hr],
-            'steps_per_day':[steps_per_day],
-            'sedentary_hours':[sedentary_hours],
-            'smoke':[smoke],
-            'alco':[alco],
-            'active':[active]
+            'age':[age], 'sex':[sex], 'resting_bp':[resting_bp], 'cholesterol':[cholesterol],
+            'max_hr':[max_hr], 'steps_per_day':[steps_per_day], 'sedentary_hours':[sedentary_hours],
+            'smoke':[smoke], 'alco':[alco], 'active':[active]
         })
-
-        # Dummy model for demonstration
+        # Dummy model just for demonstration
         X_demo = input_data.copy()
         y_demo = [1]  # assume high risk
         model = RandomForestClassifier(n_estimators=10, random_state=42)
@@ -82,7 +68,7 @@ if page == "🏃 Manual Lifestyle Input":
 
         # Tips
         st.subheader("Lifestyle Tips")
-        if pred == 1:
+        if pred==1:
             st.markdown("""
             - Increase physical activity: aim for at least 10k steps/day  
             - Reduce sedentary hours: take breaks every hour  
@@ -94,32 +80,68 @@ if page == "🏃 Manual Lifestyle Input":
             st.markdown("Keep maintaining your healthy lifestyle! 💪")
 
 # -------------------------------
-# PAGE 2: PKL Upload Predictions
+# PAGE 2: Upload PKL Models & Predict
 # -------------------------------
-elif page == "📊 PKL Upload Predictions":
-    st.header("Upload PKL files for batch heart risk predictions")
-    uploaded_files = st.file_uploader("Upload PKL file(s)", type=["pkl"], accept_multiple_files=True)
+elif page == "📊 Upload PKL Models & Predict":
+    st.header("Upload your PKL model(s) & CSV data for batch predictions")
+    
+    model_file = st.file_uploader("Upload PKL Model", type=["pkl"])
+    data_file = st.file_uploader("Upload CSV Data", type=["csv"])
 
-    if uploaded_files:
-        for file in uploaded_files:
-            st.subheader(f"Preview: {file.name}")
-            model = joblib.load(file)
-            st.write(f"Loaded model: {file.name}")
+    if model_file and data_file:
+        try:
+            model = joblib.load(model_file)
+            df = pd.read_csv(data_file)
+            st.subheader("Data Preview")
+            st.dataframe(df.head())
 
-            # For demonstration, generate random input matching features
-            if hasattr(model, "feature_names_in_"):
-                features = model.feature_names_in_
-                df_dummy = pd.DataFrame(np.random.rand(5, len(features)), columns=features)
-                df_dummy['Prediction'] = model.predict(df_dummy)
-                st.dataframe(df_dummy)
-            else:
-                st.error("❌ Model does not contain feature names.")
+            X = df.select_dtypes(include=np.number)
+            df['Prediction'] = model.predict(X)
+
+            st.subheader("Prediction Distribution")
+            fig = px.bar(
+                x=['Low Risk','High Risk'],
+                y=[(df['Prediction']==0).sum(), (df['Prediction']==1).sum()],
+                labels={'x':'Risk Category','y':'Count'}
+            )
+            st.plotly_chart(fig, use_container_width=True)
+        except Exception as e:
+            st.error(f"❌ Could not predict: {e}")
 
 # -------------------------------
-# PAGE 3: Chatbot
+# PAGE 3: Weekly Progress Tracker
+# -------------------------------
+elif page == "📅 Weekly Progress Tracker":
+    st.header("Track your weekly activity & steps")
+
+    if "progress" not in st.session_state:
+        st.session_state.progress = []
+
+    date = st.date_input("Select Date", datetime.today())
+    steps = st.number_input("Steps Today", 0, 50000, 8000)
+    if st.button("Add Progress"):
+        st.session_state.progress.append({"date":date, "steps":steps})
+    
+    if st.session_state.progress:
+        df_progress = pd.DataFrame(st.session_state.progress)
+        st.subheader("Weekly Progress Table")
+        st.dataframe(df_progress.sort_values("date"))
+
+        st.subheader("Weekly Progress Chart")
+        fig = px.bar(df_progress, x="date", y="steps", labels={"steps":"Steps"})
+        st.plotly_chart(fig, use_container_width=True)
+
+# -------------------------------
+# PAGE 4: Chatbot (Local Small Model)
 # -------------------------------
 elif page == "💬 Chat with AI":
     st.header("💬 Ask the AI any health or lifestyle questions!")
+
+    @st.cache_resource
+    def load_chatbot():
+        return pipeline("conversational", model="facebook/blenderbot-400M-distill")
+
+    chatbot = load_chatbot()
 
     if "chat_history" not in st.session_state:
         st.session_state.chat_history = []
@@ -135,23 +157,12 @@ elif page == "💬 Chat with AI":
             st.markdown(user_input)
 
         try:
-            response = openai.Completion.create(
-                engine="text-davinci-003",
-                prompt=user_input,
-                max_tokens=150
-            )
-            ai_reply = response.choices[0].text.strip()
+            response = chatbot(user_input)
+            ai_reply = response[0]['generated_text']
             st.session_state.chat_history.append(("assistant", ai_reply))
             with st.chat_message("assistant"):
                 st.markdown(ai_reply)
         except Exception as e:
-            st.error(f"⚠️ OpenAI error: {e}")
+            st.error(f"⚠️ Chatbot error: {e}")
 
-
-
-
-
-
-
-
-
+       
