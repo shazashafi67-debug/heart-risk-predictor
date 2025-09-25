@@ -4,23 +4,30 @@ import numpy as np
 from sklearn.ensemble import RandomForestClassifier
 import plotly.express as px
 from datetime import datetime, timedelta
+from openai import OpenAI
 
+# -------------------------------
+# OpenAI Setup (✅ New API style)
+# -------------------------------
+client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
 
+# -------------------------------
 # App Configuration
-
+# -------------------------------
 st.set_page_config(page_title="Lifestyle & Heart Risk Predictor", layout="wide")
-st.title("🩺 Lifestyle & Heart Risk Predictor")
+st.title("🩺 Lifestyle & Heart Risk Predictor + 🤖 AI Chat")
 st.sidebar.title("Navigation")
 
 page = st.sidebar.radio("Go to:", [
     "🏃 Manual Lifestyle Input",
     "📊 CSV Upload Predictions",
-    "🎯 Weekly Goal & Progress Tracker"
+    "🎯 Weekly Goal & Progress Tracker",
+    "💬 AI Health Chatbot"
 ])
 
-
+# -------------------------------
 # PAGE 1: Manual Lifestyle Input
-
+# -------------------------------
 if page == "🏃 Manual Lifestyle Input":
     st.header("Enter your lifestyle & health data for Heart Risk Prediction")
 
@@ -59,29 +66,29 @@ if page == "🏃 Manual Lifestyle Input":
         })
 
         X_demo = input_data.copy()
-        y_demo = [1]  # assume high risk
+        y_demo = [1]
         model = RandomForestClassifier(n_estimators=10, random_state=42)
         model.fit(X_demo, y_demo)
         pred = model.predict(input_data)[0]
 
         st.subheader("Prediction Result")
-        st.write("High Risk ⚠️" if pred==1 else "Low Risk ✅")
+        st.write("⚠️ High Risk" if pred==1 else "✅ Low Risk")
 
         st.subheader("Lifestyle Tips")
         if pred == 1:
             st.markdown("""
-            - Increase physical activity: aim for at least 10k steps/day  
-            - Reduce sedentary hours: take breaks every hour  
-            - Eat a balanced diet low in saturated fat and sugar  
-            - Avoid smoking & limit alcohol intake  
-            - Regular check-ups with your doctor
+            - 🏃 Increase physical activity: aim for at least 10k steps/day  
+            - 💻 Reduce sedentary hours: stand up or stretch every hour  
+            - 🥗 Eat a balanced diet low in saturated fat  
+            - 🚭 Avoid smoking & limit alcohol intake  
+            - 🩺 Regular check-ups with your doctor
             """)
         else:
-            st.markdown("Keep maintaining your healthy lifestyle! 💪")
+            st.markdown("👏 Keep maintaining your healthy lifestyle!")
 
-
+# -------------------------------
 # PAGE 2: CSV Upload Predictions
-
+# -------------------------------
 elif page == "📊 CSV Upload Predictions":
     st.header("Upload CSV files for batch heart risk predictions")
     uploaded_files = st.file_uploader("Upload CSV(s)", type=["csv"], accept_multiple_files=True)
@@ -109,24 +116,19 @@ elif page == "📊 CSV Upload Predictions":
             except Exception as e:
                 st.error(f"❌ Could not predict for `{file.name}`: {e}")
 
-
+# -------------------------------
 # PAGE 3: Weekly Goal & Progress Tracker
-
+# -------------------------------
 elif page == "🎯 Weekly Goal & Progress Tracker":
     st.header("Set your weekly health goals and log daily progress!")
 
-    # Weekly goals
     steps_goal = st.number_input("Daily Steps Goal", 1000, 50000, 10000)
     exercise_goal = st.number_input("Daily Exercise Minutes Goal", 0, 180, 30)
     water_goal = st.number_input("Daily Water Intake (ml)", 500, 5000, 2000)
 
-    # Initialize session state for weekly log
     if "weekly_log" not in st.session_state:
-        st.session_state.weekly_log = pd.DataFrame(
-            columns=["Date", "Steps", "Exercise", "Water Intake"]
-        )
+        st.session_state.weekly_log = pd.DataFrame(columns=["Date", "Steps", "Exercise", "Water Intake"])
 
-    # Log today's data
     st.subheader("Log Today's Progress")
     steps_done = st.number_input("Steps Today", 0, 50000, 0)
     exercise_done = st.number_input("Exercise Minutes Today", 0, 180, 0)
@@ -139,10 +141,8 @@ elif page == "🎯 Weekly Goal & Progress Tracker":
         ], ignore_index=True)
         st.success(f"✅ Progress for {today} added!")
 
-    # Display weekly calendar table
     if not st.session_state.weekly_log.empty:
-        st.subheader("Weekly Progress Calendar")
-        # Show last 7 days
+        st.subheader("📆 Weekly Progress Calendar")
         last_7_days = datetime.today() - timedelta(days=6)
         weekly_data = st.session_state.weekly_log[
             pd.to_datetime(st.session_state.weekly_log["Date"]) >= last_7_days
@@ -150,7 +150,6 @@ elif page == "🎯 Weekly Goal & Progress Tracker":
         weekly_data.set_index("Date", inplace=True)
         st.dataframe(weekly_data)
 
-        # Show progress percentages
         weekly_data_pct = weekly_data.copy()
         weekly_data_pct["Steps %"] = (weekly_data_pct["Steps"] / steps_goal * 100).clip(0,100)
         weekly_data_pct["Exercise %"] = (weekly_data_pct["Exercise"] / exercise_goal * 100).clip(0,100)
@@ -162,6 +161,41 @@ elif page == "🎯 Weekly Goal & Progress Tracker":
             labels={"value":"Progress %", "variable":"Metric"}
         )
         st.plotly_chart(fig, use_container_width=True)
+
+# -------------------------------
+# PAGE 4: AI Health Chatbot
+# -------------------------------
+elif page == "💬 AI Health Chatbot":
+    st.header("💬 Ask anything about health, lifestyle, or fitness")
+
+    if "chat_history" not in st.session_state:
+        st.session_state.chat_history = []
+
+    for role, msg in st.session_state.chat_history:
+        with st.chat_message(role):
+            st.markdown(msg)
+
+    user_input = st.chat_input("Ask your question here...")
+    if user_input:
+        st.session_state.chat_history.append(("user", user_input))
+        with st.chat_message("user"):
+            st.markdown(user_input)
+
+        try:
+            response = client.chat.completions.create(
+                model="gpt-4o-mini",  # ✅ works with free-tier if quota available
+                messages=[
+                    {"role": "system", "content": "You are a helpful health and lifestyle assistant."},
+                    *[{"role": role, "content": msg} for role, msg in st.session_state.chat_history]
+                ]
+            )
+            ai_reply = response.choices[0].message.content
+            st.session_state.chat_history.append(("assistant", ai_reply))
+            with st.chat_message("assistant"):
+                st.markdown(ai_reply)
+        except Exception as e:
+            st.error(f"⚠️ OpenAI error: {e}")
+
 
 
 
