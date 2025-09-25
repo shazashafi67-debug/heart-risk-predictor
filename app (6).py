@@ -16,7 +16,7 @@ if "OPENAI_API_KEY" in st.secrets:
 # App Config
 
 st.set_page_config(page_title="Health & Lifestyle App", layout="wide")
-st.title("🩺 Health & Lifestyle Predictor + AI Assistant")
+st.title("🩺 AI-Based Health Risk Prediction Using Lifestyle Data with Chatbot Integration ")
 st.sidebar.title("Navigation")
 
 page = st.sidebar.radio("Go to:", [
