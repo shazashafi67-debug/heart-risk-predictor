@@ -6,16 +6,15 @@ import plotly.express as px
 from datetime import datetime, timedelta
 from openai import OpenAI
 
-# -------------------------------
 # OpenAI Setup
-# -------------------------------
+
 client = None
 if "OPENAI_API_KEY" in st.secrets:
     client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
 
-# -------------------------------
+
 # App Config
-# -------------------------------
+
 st.set_page_config(page_title="Health & Lifestyle App", layout="wide")
 st.title("🩺 Health & Lifestyle Predictor + AI Assistant")
 st.sidebar.title("Navigation")
@@ -27,9 +26,9 @@ page = st.sidebar.radio("Go to:", [
     "💬 Chat with AI"
 ])
 
-# -------------------------------
+
 # Upload PKL Models
-# -------------------------------
+
 st.sidebar.subheader("Upload PKL Models")
 heart_model_file = st.sidebar.file_uploader("Heart Risk Model", type="pkl")
 cardio_model_file = st.sidebar.file_uploader("Cardio Risk Model", type="pkl")
@@ -43,9 +42,9 @@ if heart_model_file and cardio_model_file and activity_model_file:
     models_loaded = True
     st.sidebar.success("✅ Models loaded successfully!")
 
-# -------------------------------
-# PAGE 1: Lifestyle Risk Prediction (Manual)
-# -------------------------------
+
+# PAGE 1: Lifestyle Risk Prediction 
+
 if page == "🏃 Lifestyle Risk Prediction":
     st.header("Enter Lifestyle Data for Heart Risk Prediction")
     
@@ -76,9 +75,9 @@ if page == "🏃 Lifestyle Risk Prediction":
             st.subheader("Low Risk ✅")
             st.markdown("Great! Keep maintaining your healthy lifestyle 💪")
 
-# -------------------------------
+
 # PAGE 2: Analyze PKL Models
-# -------------------------------
+
 elif page == "📋 Analyze PKL Models":
     st.header("🔍 Analyze Uploaded PKL Models")
     if not models_loaded:
@@ -108,9 +107,9 @@ elif page == "📋 Analyze PKL Models":
         model_summary(cardio_model, "Cardio Risk")
         model_summary(activity_model, "Activity")
 
-# -------------------------------
+
 # PAGE 3: Weekly Progress
-# -------------------------------
+
 elif page == "📈 Weekly Progress":
     st.header("📅 Weekly Goal & Progress Tracker")
     st.info("Enter steps and sedentary hours each day.")
@@ -123,9 +122,8 @@ elif page == "📈 Weekly Progress":
         fig = px.bar(df_progress, x='Day', y='Steps', title="Weekly Steps Progress", text='Steps')
         st.plotly_chart(fig, use_container_width=True)
 
-# -------------------------------
 # PAGE 4: Chatbot
-# -------------------------------
+
 elif page == "💬 Chat with AI":
     st.header("💬 Ask Health & Lifestyle Questions")
     if client is None:
