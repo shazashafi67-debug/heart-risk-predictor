@@ -3,7 +3,10 @@ pandas
 numpy
 scikit-learn
 plotly
+joblib
 openai>=1.0.0
+
+
 
 
 
