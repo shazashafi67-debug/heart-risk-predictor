@@ -4,7 +4,9 @@ numpy
 scikit-learn
 plotly
 joblib
-openai==0.28.0
+transformers
+torch
+
 
 
 
